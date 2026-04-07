@@ -77,6 +77,23 @@ Returns a configuration value by key. All bridge configuration (bot tokens, allo
 | `bridge_model` | `"claude-sonnet-4-20250514"` | Default model |
 | `bridge_{adapter}_stream_enabled` | `"true"` | Enable streaming previews |
 
+For Discord, configure at least one of `bridge_discord_allowed_users` or
+`bridge_discord_allowed_channels`. Additional Discord-specific keys:
+
+- `bridge_discord_allowed_channels` — comma-separated channel IDs
+- `bridge_discord_allowed_guilds` — comma-separated guild IDs
+- `bridge_discord_group_policy` — `open`, `disabled`, or host-defined policy
+- `bridge_discord_require_mention` — set to `"true"` to require `@bot` in guild channels
+
+When Discord must traverse an outbound proxy, the adapter checks these
+environment variables in order and applies the proxy to both Gateway and REST:
+
+- `CTI_DISCORD_PROXY`
+- `HTTPS_PROXY`
+- `https_proxy`
+- `HTTP_PROXY`
+- `http_proxy`
+
 #### Channel Bindings
 
 ```typescript

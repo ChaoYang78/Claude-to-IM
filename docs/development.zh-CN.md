@@ -77,6 +77,23 @@ getSetting(key: string): string | null;
 | `bridge_model` | `"claude-sonnet-4-20250514"` | 默认模型 |
 | `bridge_{adapter}_stream_enabled` | `"true"` | 启用流式预览 |
 
+对于 Discord，至少需要配置 `bridge_discord_allowed_users` 或
+`bridge_discord_allowed_channels` 其中一个。其他常用的 Discord 配置：
+
+- `bridge_discord_allowed_channels` — 逗号分隔的频道 ID
+- `bridge_discord_allowed_guilds` — 逗号分隔的服务器 ID
+- `bridge_discord_group_policy` — `open`、`disabled` 或宿主定义的策略
+- `bridge_discord_require_mention` — 设为 `"true"` 时要求服务器频道内显式 `@bot`
+
+如果 Discord 需要通过出站代理访问外网，适配器会按以下顺序检查环境变量，
+并同时把代理应用到 Gateway 和 REST：
+
+- `CTI_DISCORD_PROXY`
+- `HTTPS_PROXY`
+- `https_proxy`
+- `HTTP_PROXY`
+- `http_proxy`
+
 #### 通道绑定（Channel Bindings）
 
 ```typescript

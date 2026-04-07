@@ -111,6 +111,9 @@ All settings are read through `BridgeStore.getSetting(key)`. Your host applicati
 | `bridge_{adapter}_bot_token` | Bot token for the platform (e.g. `bridge_telegram_bot_token`) |
 | `bridge_{adapter}_allowed_users` | Comma-separated user IDs authorized to use the bridge |
 
+For Discord, you can authorize by user or by channel. Configure at least one of
+`bridge_discord_allowed_users` or `bridge_discord_allowed_channels`.
+
 ### Optional Settings
 
 | Key | Description | Default |
@@ -120,6 +123,27 @@ All settings are read through `BridgeStore.getSetting(key)`. Your host applicati
 | `bridge_{adapter}_stream_enabled` | Enable streaming previews | `"true"` |
 | `bridge_default_cwd` | Default working directory for new sessions | `$HOME` |
 | `bridge_model` | Default Claude model | Host decides |
+
+Discord-specific optional settings:
+
+- `bridge_discord_allowed_channels` — comma-separated channel IDs
+- `bridge_discord_allowed_guilds` — comma-separated guild IDs
+- `bridge_discord_require_mention` — require `@bot` mention in guild channels
+
+### Discord Behind HTTP/HTTPS Proxies
+
+When Discord runs behind a restricted network, the adapter can use an explicit
+HTTP/HTTPS proxy for both Gateway WebSocket traffic and REST API calls.
+
+Supported environment variables, checked in order:
+
+- `CTI_DISCORD_PROXY`
+- `HTTPS_PROXY`
+- `https_proxy`
+- `HTTP_PROXY`
+- `http_proxy`
+
+The proxy value must be an `http://` or `https://` URL.
 
 Replace `{adapter}` with `telegram`, `discord`, or `feishu`.
 

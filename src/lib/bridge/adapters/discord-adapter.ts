@@ -12,6 +12,10 @@
  */
 
 import crypto from 'crypto';
+import { createRequire as createNodeRequire } from 'module';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import type {
   ChannelType,
   InboundMessage,
@@ -38,16 +42,93 @@ const TYPING_INTERVAL_MS = 8000;
 /** Interaction TTL for answerCallback (60s). */
 const INTERACTION_TTL_MS = 60_000;
 
+const localRequire = createNodeRequire(import.meta.url);
+
+function getBridgePackageRequire() {
+  try {
+    const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
+    const bundledNodeModulesRoot = path.resolve(runtimeDir, '../node_modules/claude-to-im');
+    const bundledPackageJson = path.join(bundledNodeModulesRoot, 'package.json');
+    if (fs.existsSync(bundledPackageJson)) {
+      return createNodeRequire(bundledPackageJson);
+    }
+  } catch {
+    // Fall through to the local require when not running from the bundled skill.
+  }
+
+  return localRequire;
+}
+
 /**
  * Lazily loaded discord.js module reference.
  * Populated in start() via dynamic import to avoid bundler issues.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let discordJs: any = null;
+let discordWsProxyPatched = false;
+
+// Discord uses ws for gateway traffic and undici for REST. In locked-down
+// environments both paths need the same explicit proxy wiring.
+function resolveDiscordProxyUrl(): string | null {
+  const candidates = [
+    process.env.CTI_DISCORD_PROXY,
+    process.env.HTTPS_PROXY,
+    process.env.https_proxy,
+    process.env.HTTP_PROXY,
+    process.env.http_proxy,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.toString();
+      }
+    } catch {
+      // Ignore malformed proxy values and continue checking fallbacks.
+    }
+  }
+
+  return null;
+}
+
+async function patchDiscordGatewayProxy(): Promise<void> {
+  if (discordWsProxyPatched) return;
+
+  const proxyUrl = resolveDiscordProxyUrl();
+  if (!proxyUrl) return;
+
+  const bridgeRequire = getBridgePackageRequire();
+  const wsModule = bridgeRequire('ws') as { WebSocket: new (...args: any[]) => any };
+  const { HttpsProxyAgent } = bridgeRequire('https-proxy-agent') as {
+    HttpsProxyAgent: new (proxy: string) => unknown;
+  };
+
+  const agent = new HttpsProxyAgent(proxyUrl);
+  const OriginalWebSocket = wsModule.WebSocket;
+
+  class ProxyWebSocket extends OriginalWebSocket {
+    constructor(address: string | URL, protocols?: string | string[], options?: Record<string, unknown>) {
+      super(address, protocols, {
+        ...options,
+        agent: options?.agent ?? agent,
+      });
+    }
+  }
+
+  wsModule.WebSocket = ProxyWebSocket as typeof OriginalWebSocket;
+  discordWsProxyPatched = true;
+
+  console.log('[discord-adapter] Using explicit gateway proxy:', proxyUrl);
+}
 
 async function loadDiscordJs() {
   if (!discordJs) {
-    discordJs = await import('discord.js');
+    const bridgeRequire = getBridgePackageRequire();
+    await patchDiscordGatewayProxy();
+    const discordEntry = bridgeRequire.resolve('discord.js');
+    discordJs = await import(pathToFileURL(discordEntry).href);
   }
   return discordJs;
 }
@@ -63,6 +144,7 @@ export class DiscordAdapter extends BaseChannelAdapter {
   private seenMessageIds = new Set<string>();
   private botUserId: string | null = null;
   private typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
+  private restProxyAgent: any = null;
   /** Temporary storage for Interaction objects (for answerCallback). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pendingInteractions = new Map<string, { interaction: any; expiresAt: number }>();
@@ -83,10 +165,21 @@ export class DiscordAdapter extends BaseChannelAdapter {
     }
 
     const token = getBridgeContext().store.getSetting('bridge_discord_bot_token') || '';
+    const proxyUrl = resolveDiscordProxyUrl();
 
     // Dynamic import to avoid bundler resolving native modules
     const djs = await loadDiscordJs();
     const { Client, GatewayIntentBits, Partials } = djs;
+
+    if (proxyUrl) {
+      const bridgeRequire = getBridgePackageRequire();
+      const { ProxyAgent } = bridgeRequire('undici') as {
+        ProxyAgent: new (proxy: string) => any;
+      };
+      this.restProxyAgent = new ProxyAgent(proxyUrl);
+    } else {
+      this.restProxyAgent = null;
+    }
 
     this.client = new Client({
       intents: [
@@ -96,6 +189,7 @@ export class DiscordAdapter extends BaseChannelAdapter {
         GatewayIntentBits.DirectMessages,
       ],
       partials: [Partials.Channel],
+      ...(this.restProxyAgent ? { rest: { agent: this.restProxyAgent } } : {}),
     });
 
     // Register event handlers before login
@@ -143,6 +237,15 @@ export class DiscordAdapter extends BaseChannelAdapter {
         console.warn('[discord-adapter] Client destroy error:', err instanceof Error ? err.message : err);
       }
       this.client = null;
+    }
+
+    if (this.restProxyAgent) {
+      try {
+        this.restProxyAgent.close();
+      } catch (err) {
+        console.warn('[discord-adapter] REST proxy close error:', err instanceof Error ? err.message : err);
+      }
+      this.restProxyAgent = null;
     }
 
     // Reject all waiting consumers

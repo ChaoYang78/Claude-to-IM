@@ -111,6 +111,9 @@ npx tsx src/lib/bridge/examples/mock-host.ts
 | `bridge_{adapter}_bot_token` | 平台的 Bot Token（如 `bridge_telegram_bot_token`） |
 | `bridge_{adapter}_allowed_users` | 逗号分隔的授权用户 ID |
 
+对于 Discord，可以按用户或频道授权。至少配置
+`bridge_discord_allowed_users` 或 `bridge_discord_allowed_channels` 其中一个。
+
 ### 可选配置
 
 | Key | 说明 | 默认值 |
@@ -120,6 +123,27 @@ npx tsx src/lib/bridge/examples/mock-host.ts
 | `bridge_{adapter}_stream_enabled` | 启用流式预览 | `"true"` |
 | `bridge_default_cwd` | 新会话的默认工作目录 | `$HOME` |
 | `bridge_model` | 默认 Claude 模型 | 由宿主决定 |
+
+Discord 相关的可选配置：
+
+- `bridge_discord_allowed_channels` — 逗号分隔的频道 ID
+- `bridge_discord_allowed_guilds` — 逗号分隔的服务器 ID
+- `bridge_discord_require_mention` — 在服务器频道中要求显式 `@bot`
+
+### 受限网络中的 Discord 代理
+
+如果 Discord 运行在受限网络环境中，适配器可以为 Gateway WebSocket 和
+REST API 显式指定同一个 HTTP/HTTPS 代理。
+
+支持的环境变量按以下顺序检查：
+
+- `CTI_DISCORD_PROXY`
+- `HTTPS_PROXY`
+- `https_proxy`
+- `HTTP_PROXY`
+- `http_proxy`
+
+代理值必须是 `http://` 或 `https://` URL。
 
 将 `{adapter}` 替换为 `telegram`、`discord` 或 `feishu`。
 

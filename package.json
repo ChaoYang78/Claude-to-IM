@@ -1,6 +1,6 @@
 {
   "name": "claude-to-im",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Host-agnostic bridge connecting Claude Code SDK to IM platforms (Telegram, Discord, Feishu)",
   "type": "module",
   "main": "dist/lib/bridge/context.js",
@@ -40,6 +40,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.62",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "discord.js": "^14.25.1",
+    "https-proxy-agent": "^7.0.6",
     "markdown-it": "^14.1.1",
     "ws": "^8.18.0"
   },

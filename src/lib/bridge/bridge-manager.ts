@@ -252,7 +252,10 @@ export async function start(): Promise<void> {
       console.log(`[bridge-manager] Started adapter: ${type}`);
       startedCount++;
     } catch (err) {
-      console.error(`[bridge-manager] Failed to start adapter ${type}:`, err);
+      console.error(
+        `[bridge-manager] Failed to start adapter ${type}:`,
+        err instanceof Error ? err.stack || err.message : err,
+      );
     }
   }
 
